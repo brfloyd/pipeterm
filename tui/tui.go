@@ -24,18 +24,19 @@ type Model struct {
 	confirmReset     bool
 }
 
-func runSalesforceIngestion() {
+func runSalesforceIngestion() (string, error) {
+	// Execute the Python script
 	cmd := exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/salesforce.py")
 
+	// Capture combined stdout and stderr
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Print the error message and output if there was a failure
-		fmt.Printf("Error: %v\n", err)
-		fmt.Printf("Output: %s\n", string(output))
-		return
+		// Return the error and output for logging or display purposes
+		return string(output), err
 	}
 
-	fmt.Printf("script output: %s\n", string(output))
+	// Return the successful script output
+	return string(output), nil
 }
 
 // If successful, print the script output
@@ -348,7 +349,13 @@ func (m Model) View() string {
 			s += fmt.Sprintf("Service: %s\n", m.services[m.selectedService])
 			s += fmt.Sprintf("Data Loading Type: %s\n", m.dataTypes[m.selectedDataType])
 			s += "\nPress 'Enter' to confirm, or 'Esc' to return to the welcome screen."
-			runSalesforceIngestion()
+
+			scriptOutput, err := runSalesforceIngestion()
+			if err != nil {
+				s += fmt.Sprintf("Error running script: %s\n", err)
+			} else {
+				s += fmt.Sprintf("Script output: %s\n", scriptOutput)
+			}
 		}
 	}
 
