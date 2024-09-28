@@ -1,5 +1,6 @@
 import csv
 import os
+import time
 
 import pandas as pd
 import pyarrow as pa
@@ -29,7 +30,7 @@ response = requests.get(
     report_url, headers={"Authorization": f"Bearer {sf.session_id}"}
 )
 response.raise_for_status()
-
+time.sleep(5)
 report_data = response.json()
 column_names = [
     column["label"]

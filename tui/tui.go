@@ -1,15 +1,18 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"os/exec"
+	"time"
 
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/common-nighthawk/go-figure"
-	"os/exec"
 )
 
-// Model represents the state of the UI (exported)
+// Model represents the state of the UI
 type Model struct {
 	state            string
 	stage            int
@@ -22,10 +25,16 @@ type Model struct {
 	inputs           []string
 	currentScreen    string
 	confirmReset     bool
+
+	progress      progress.Model
+	progressValue float64
+	scriptOutput  string
+	scriptCancel  context.CancelFunc
 }
 
 func runSalesforceIngestion() (string, error) {
 	// Execute the Python script
+
 	cmd := exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/salesforce.py")
 
 	// Capture combined stdout and stderr
@@ -39,10 +48,9 @@ func runSalesforceIngestion() (string, error) {
 	return string(output), nil
 }
 
-// If successful, print the script output
 func InitialModel() Model {
 	return Model{
-		//Start with the welcome screen when booting up the tool
+		// Start with the welcome screen when booting up the tool
 		state:            "welcome",
 		services:         []string{"Salesforce", "Monday", "HubSpot"},
 		dataTypes:        []string{"All Data", "Batch"},
@@ -52,6 +60,7 @@ func InitialModel() Model {
 		inputs:           []string{"", "", ""},
 		currentScreen:    "",
 		confirmReset:     false,
+		progress:         progress.New(progress.WithDefaultGradient()),
 	}
 }
 
@@ -59,11 +68,49 @@ func (m Model) Init() tea.Cmd {
 	return nil
 }
 
+// Message types for progress updates and script execution
+type progressMsg float64
+type scriptSuccessMsg string
+type scriptErrorMsg struct{ err error }
+
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
 		_, _ = msg.Width, msg.Height
+
+	case progress.FrameMsg:
+		var cmd tea.Cmd
+		var newModel tea.Model
+		newModel, cmd = m.progress.Update(msg)
+		m.progress = newModel.(progress.Model) // Type assertion to progress.Model
+		return m, cmd
+	case progressMsg:
+		m.progressValue += float64(msg)
+		if m.progressValue > 1.0 {
+			m.progressValue = 1.0
+		}
+		cmd := m.progress.SetPercent(m.progressValue)
+		if m.progressValue < 1.0 && m.currentScreen == "running_script" {
+			return m, tea.Batch(cmd, incrementProgressCmd())
+		}
+		return m, cmd
+
+	case scriptSuccessMsg:
+		m.scriptCancel = nil
+		m.currentScreen = "pipeline_created"
+		m.scriptOutput = string(msg)
+		m.progressValue = 1.0
+		cmd := m.progress.SetPercent(1.0)
+		return m, cmd
+
+	case scriptErrorMsg:
+		m.scriptCancel = nil
+		m.currentScreen = "pipeline_error"
+		m.scriptOutput = msg.err.Error()
+		m.progressValue = 1.0
+		cmd := m.progress.SetPercent(1.0)
+		return m, cmd
 
 	case tea.KeyMsg:
 
@@ -85,6 +132,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle Escape key to return home or quit
 		if msg.Type == tea.KeyEsc {
 			if m.state != "welcome" {
+				if m.currentScreen == "running_script" {
+					if m.scriptCancel != nil {
+						m.scriptCancel()
+					}
+					m.currentScreen = "welcome"
+					m.state = "welcome"
+					m.stage = 0
+					m.inputs = []string{"", "", ""}
+					m.cursorPosition = 0
+					return m, nil
+				}
 				m.confirmReset = true
 			} else {
 				return m, tea.Quit
@@ -131,7 +189,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.stage = 0
 				m.currentScreen = ""
 			default:
-				// This causes any other key that is presses will exit the screen
+				// This causes any other key that is pressed to exit the screen
 				m.currentScreen = ""
 			}
 			return m, nil
@@ -204,8 +262,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case 3:
 				if msg.String() == "enter" {
-
-					m.currentScreen = "pipeline_created"
+					m.currentScreen = "running_script"
+					m.progressValue = 0.0
+					m.progress.SetPercent(0.0)
+					// Create a context to cancel the script if needed
+					var ctx context.Context
+					ctx, m.scriptCancel = context.WithCancel(context.Background())
+					// Start the script and progress bar
+					return m, tea.Batch(runScriptCmd(ctx), incrementProgressCmd())
 				}
 			}
 		}
@@ -245,29 +309,42 @@ func (m Model) View() string {
 			s += "\nPress any key to return."
 		case "pipelines":
 			s += "Active Pipelines:\n"
-			s += "- Pipeline 1\n" // I just hardcoded these in here for now to show the concept of the pipeline screen
+			s += "- Pipeline 1\n" // Hardcoded for now
 			s += "- Pipeline 2\n"
 			s += "\nPress any key to return."
 		case "save":
 			s += "Saving your progress...\n"
-			//This doesent actually save anything, just a placeholder message for now
 			s += "Progress saved successfully.\n"
 			s += "\nPress any key to continue."
 		case "pipeline_created":
 			s += "Pipeline created successfully!\n"
+			s += fmt.Sprintf("Script output: %s\n", m.scriptOutput)
 			s += "\nPress any key to return to the welcome screen."
 			// Reset the state to welcome after displaying the message
 			m.state = "welcome"
 			m.stage = 0
 			m.inputs = []string{"", "", ""}
 			m.cursorPosition = 0
+		case "pipeline_error":
+			s += "An error occurred while running the script.\n"
+			s += fmt.Sprintf("Error: %s\n", m.scriptOutput)
+			s += "\nPress any key to return to the welcome screen."
+			// Reset the state to welcome after displaying the message
+			m.state = "welcome"
+			m.stage = 0
+			m.inputs = []string{"", "", ""}
+			m.cursorPosition = 0
+		case "running_script":
+			s += "Running the script...\n\n"
+			s += m.progress.View() + "\n"
+			s += "\nPress 'Esc' to cancel."
 		}
 		return s
 	}
 
 	// Display the welcome screen
 	if m.state == "welcome" {
-		// This is the ascii art that will welcome the user to the tool
+		// ASCII art welcome
 		fig := figure.NewFigure("PIPETERM", "doom", true)
 		welcomeText := fig.String()
 
@@ -314,7 +391,7 @@ func (m Model) View() string {
 				line := cursor + service
 				s += lineStyle.Render(line) + "\n"
 			}
-			s += "\nUse Up/Down arrows to navigate, 'Enter' to select." //TODO: Add vim jkli support
+			s += "\nUse Up/Down arrows to navigate, 'Enter' to select."
 			s += "\nPress 'Esc' at any time to return to the welcome screen."
 		case 2:
 			s += grayedOutStyle.Render("Name your pipeline: "+m.inputs[0]) + "\n"
@@ -349,15 +426,31 @@ func (m Model) View() string {
 			s += fmt.Sprintf("Service: %s\n", m.services[m.selectedService])
 			s += fmt.Sprintf("Data Loading Type: %s\n", m.dataTypes[m.selectedDataType])
 			s += "\nPress 'Enter' to confirm, or 'Esc' to return to the welcome screen."
-
-			scriptOutput, err := runSalesforceIngestion()
-			if err != nil {
-				s += fmt.Sprintf("Error running script: %s\n", err)
-			} else {
-				s += fmt.Sprintf("Script output: %s\n", scriptOutput)
-			}
 		}
 	}
 
 	return s
+}
+
+// Command to run the script
+func runScriptCmd(ctx context.Context) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.CommandContext(ctx, "python3", "/Users/brettfloyd/pipeterm/utils/salesforce.py")
+		output, err := cmd.CombinedOutput()
+		if ctx.Err() == context.Canceled {
+			return scriptErrorMsg{err: fmt.Errorf("script canceled")}
+		}
+		if err != nil {
+			return scriptErrorMsg{err: err}
+		}
+		return scriptSuccessMsg(string(output))
+	}
+}
+
+// Command to increment the progress bar
+func incrementProgressCmd() tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(time.Millisecond * 100)
+		return progressMsg(0.02)
+	}
 }
