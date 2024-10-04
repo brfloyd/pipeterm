@@ -6,3 +6,7 @@ type scriptSuccessMsg string
 type scriptErrorMsg struct{ err error }
 type createDataLakeErrorMsg struct{ err error }
 type createDataLakeSuccessMsg string
+type queryResultMsg struct {
+	result string
+	err    error
+}

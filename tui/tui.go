@@ -2,13 +2,13 @@ package tui
 
 import (
 	"context"
-	//"database/sql"
+	"database/sql"
 	"fmt"
 	_ "github.com/marcboeker/go-duckdb"
 	"os"
 	"os/exec"
 	"path/filepath"
-	//"strings"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,4 +65,77 @@ func listDataLakes() ([]string, error) {
 		}
 	}
 	return dataLakes, nil
+}
+
+// Command to execute the query
+func executeQueryCmd(dataLake string, query string) tea.Cmd {
+	return func() tea.Msg {
+		result, err := executeQuery(dataLake, query)
+		return queryResultMsg{result: result, err: err}
+	}
+}
+
+func executeQuery(dataLake string, query string) (string, error) {
+	// Open a DuckDB connection
+	db, err := sql.Open("duckdb", "")
+	if err != nil {
+		return "", err
+	}
+	defer db.Close()
+
+	// Get the user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	baseDir := filepath.Join(homeDir, ".local", "share", "pipeterm_lake", dataLake)
+
+	// Create views for each Parquet file in the data lake
+	files, err := filepath.Glob(filepath.Join(baseDir, "*.parquet"))
+	if err != nil {
+		return "", err
+	}
+
+	for _, file := range files {
+		tableName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+		createViewQuery := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet('%s');", tableName, file)
+		_, err := db.Exec(createViewQuery)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Execute the user's query
+	rows, err := db.Query(query)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	// Fetch and format the results
+	columns, err := rows.Columns()
+	if err != nil {
+		return "", err
+	}
+
+	var result strings.Builder
+	result.WriteString(strings.Join(columns, "\t") + "\n")
+
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return "", err
+		}
+		var valueStrs []string
+		for _, val := range values {
+			valueStrs = append(valueStrs, fmt.Sprintf("%v", val))
+		}
+		result.WriteString(strings.Join(valueStrs, "\t") + "\n")
+	}
+
+	return result.String(), nil
 }

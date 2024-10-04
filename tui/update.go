@@ -51,6 +51,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case createDataLakeErrorMsg:
 		return m, nil
 
+	case queryResultMsg:
+		if msg.err != nil {
+			m.queryResult = msg.err.Error()
+		} else {
+			m.queryResult = msg.result
+		}
+		return m, nil
+
 	case tea.KeyMsg:
 
 		if m.confirmReset {
@@ -153,6 +161,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.inDataLakeSelect = false
 				m.inQueryEditor = true
+				m.queryInput = ""
+				m.queryResult = ""
 			case "esc":
 				m.inDataLakeSelect = false
 			}
@@ -163,7 +173,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.Type {
 			case tea.KeyEnter:
 				// Execute the query
-				return m, nil //executeQueryCmd(m.dataLakes[m.selectedDataLake], m.queryInput)
+				return m, executeQueryCmd(m.dataLakes[m.selectedDataLake], m.queryInput)
 			case tea.KeyBackspace, tea.KeyDelete:
 				if len(m.queryInput) > 0 {
 					m.queryInput = m.queryInput[:len(m.queryInput)-1]
