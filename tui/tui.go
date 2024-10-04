@@ -49,8 +49,10 @@ func runSalesforceIngestion() (string, error) {
 }
 
 func InitialModel() Model {
+
 	return Model{
 		// Start with the welcome screen when booting up the tool
+
 		state:            "welcome",
 		services:         []string{"Salesforce", "Monday", "HubSpot"},
 		dataTypes:        []string{"All Data", "Batch"},
@@ -65,13 +67,15 @@ func InitialModel() Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	return nil
+	return createDataLakeFolder()
 }
 
 // Message types for progress updates and script execution
 type progressMsg float64
 type scriptSuccessMsg string
 type scriptErrorMsg struct{ err error }
+type createDataLakeErrorMsg struct{ err error }
+type createDataLakeSuccessMsg string
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -111,6 +115,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progressValue = 1.0
 		cmd := m.progress.SetPercent(1.0)
 		return m, cmd
+
+	case createDataLakeSuccessMsg:
+		return m, nil
+
+	case createDataLakeErrorMsg:
+		return m, nil
 
 	case tea.KeyMsg:
 
@@ -444,6 +454,17 @@ func runScriptCmd(ctx context.Context) tea.Cmd {
 			return scriptErrorMsg{err: err}
 		}
 		return scriptSuccessMsg(string(output))
+	}
+}
+
+func createDataLakeFolder() tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/create_pipeterm_lake.py")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return createDataLakeErrorMsg{err: err}
+		}
+		return createDataLakeSuccessMsg(string(output))
 	}
 }
 
