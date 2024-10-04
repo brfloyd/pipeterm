@@ -2,8 +2,13 @@ package tui
 
 import (
 	"context"
+	//"database/sql"
 	"fmt"
+	_ "github.com/marcboeker/go-duckdb"
+	"os"
 	"os/exec"
+	"path/filepath"
+	//"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
@@ -25,11 +30,16 @@ type Model struct {
 	inputs           []string
 	currentScreen    string
 	confirmReset     bool
-
-	progress      progress.Model
-	progressValue float64
-	scriptOutput  string
-	scriptCancel  context.CancelFunc
+	progress         progress.Model
+	progressValue    float64
+	scriptOutput     string
+	scriptCancel     context.CancelFunc
+	dataLakes        []string
+	selectedDataLake int
+	inDataLakeSelect bool
+	inQueryEditor    bool
+	queryInput       string
+	queryResult      string
 }
 
 func runSalesforceIngestion() (string, error) {
@@ -49,7 +59,10 @@ func runSalesforceIngestion() (string, error) {
 }
 
 func InitialModel() Model {
-
+	dataLakes, err := listDataLakes()
+	if err != nil {
+		fmt.Println("Error listing data lakes:", err)
+	}
 	return Model{
 		// Start with the welcome screen when booting up the tool
 
@@ -63,6 +76,7 @@ func InitialModel() Model {
 		currentScreen:    "",
 		confirmReset:     false,
 		progress:         progress.New(progress.WithDefaultGradient()),
+		dataLakes:        dataLakes,
 	}
 }
 
@@ -198,9 +212,51 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = "create_pipeline"
 				m.stage = 0
 				m.currentScreen = ""
+			case "e":
+				m.currentScreen = "query editor"
+				m.inDataLakeSelect = true
+				m.selectedDataLake = 0
+				return m, nil
+
 			default:
 				// This causes any other key that is pressed to exit the screen
 				m.currentScreen = ""
+			}
+			return m, nil
+		}
+		// Handle data lake selection
+		if m.inDataLakeSelect {
+			switch msg.String() {
+			case "up":
+				if m.selectedDataLake > 0 {
+					m.selectedDataLake--
+				}
+			case "down":
+				if m.selectedDataLake < len(m.dataLakes)-1 {
+					m.selectedDataLake++
+				}
+			case "enter":
+				m.inDataLakeSelect = false
+				m.inQueryEditor = true
+			case "esc":
+				m.inDataLakeSelect = false
+			}
+			return m, nil
+		}
+		// Handle key messages when in query editor
+		if m.inQueryEditor {
+			switch msg.Type {
+			case tea.KeyEnter:
+				// Execute the query
+				return m, nil //executeQueryCmd(m.dataLakes[m.selectedDataLake], m.queryInput)
+			case tea.KeyBackspace, tea.KeyDelete:
+				if len(m.queryInput) > 0 {
+					m.queryInput = m.queryInput[:len(m.queryInput)-1]
+				}
+			case tea.KeyRunes:
+				m.queryInput += msg.String()
+			case tea.KeyEsc:
+				m.inQueryEditor = false
 			}
 			return m, nil
 		}
@@ -228,6 +284,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			m.state = "create_pipeline"
 			m.stage = 0
+			return m, nil
+
+		case "e":
+			m.currentScreen = "query editor"
+			m.inDataLakeSelect = true
+			m.selectedDataLake = 0
 			return m, nil
 		}
 
@@ -297,9 +359,31 @@ func (m Model) View() string {
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 1)
 
-	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [s]Save [q]Quit ")
+	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [e]Query Editor [s]Save [q]Quit ")
 	s += actionBar + "\n\n"
+	if m.inDataLakeSelect {
+		s += "Select a Data Lake:\n"
+		for i, lake := range m.dataLakes {
+			cursor := "  "
+			if m.selectedDataLake == i {
+				cursor = "> "
+			}
+			s += fmt.Sprintf("%s%s\n", cursor, lake)
+		}
+		s += "\nUse Up/Down arrows to navigate, 'Enter' to select."
+		return s
+	}
 
+	if m.inQueryEditor {
+		s += fmt.Sprintf("Data Lake: %s\n", m.dataLakes[m.selectedDataLake])
+		s += "Enter your SQL query below:\n\n"
+		s += m.queryInput + "\n"
+		s += "\nPress 'Enter' to execute, 'Esc' to go back."
+		if m.queryResult != "" {
+			s += "\n\nQuery Result:\n" + m.queryResult
+		}
+		return s
+	}
 	if m.confirmReset {
 		s += "Are you sure you want to return to the welcome screen and discard unsaved changes? (y/n)"
 		return s
@@ -317,6 +401,11 @@ func (m Model) View() string {
 			s += "Use the shortcut keys indicated in the action bar to navigate.\n"
 			s += "Press 'Esc' at any time to return to the welcome screen.\n"
 			s += "\nPress any key to return."
+		case "query editor":
+			s += "Query Editor:\n"
+			s += "Enter your query here.\n"
+			s += "\nPress any key to return."
+
 		case "pipelines":
 			s += "Active Pipelines:\n"
 			s += "- Pipeline 1\n" // Hardcoded for now
@@ -474,4 +563,23 @@ func incrementProgressCmd() tea.Cmd {
 		time.Sleep(time.Millisecond * 100)
 		return progressMsg(0.02)
 	}
+}
+
+func listDataLakes() ([]string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	baseDir := filepath.Join(homeDir, ".local", "share", "pipeterm_lake")
+	entries, err := os.ReadDir(baseDir)
+	if err != nil {
+		return nil, err
+	}
+	var dataLakes []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dataLakes = append(dataLakes, entry.Name())
+		}
+	}
+	return dataLakes, nil
 }
