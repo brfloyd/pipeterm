@@ -30,6 +30,8 @@ type Model struct {
 	inQueryEditor    bool
 	queryInput       string
 	queryResult      string
+	width            int
+	height           int
 }
 
 func InitialModel() Model {

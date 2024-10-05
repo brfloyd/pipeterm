@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/marcboeker/go-duckdb"
+	"github.com/olekukonko/tablewriter"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -118,8 +119,8 @@ func executeQuery(dataLake string, query string) (string, error) {
 		return "", err
 	}
 
-	var result strings.Builder
-	result.WriteString(strings.Join(columns, "\t") + "\n")
+	// Prepare data for tablewriter
+	var data [][]string
 
 	for rows.Next() {
 		values := make([]interface{}, len(columns))
@@ -132,10 +133,30 @@ func executeQuery(dataLake string, query string) (string, error) {
 		}
 		var valueStrs []string
 		for _, val := range values {
-			valueStrs = append(valueStrs, fmt.Sprintf("%v", val))
+			switch v := val.(type) {
+			case nil:
+				valueStrs = append(valueStrs, "NULL")
+			case []byte:
+				valueStrs = append(valueStrs, string(v))
+			default:
+				valueStrs = append(valueStrs, fmt.Sprintf("%v", v))
+			}
 		}
-		result.WriteString(strings.Join(valueStrs, "\t") + "\n")
+		data = append(data, valueStrs)
 	}
 
-	return result.String(), nil
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
+
+	// Create a buffer to capture the table output
+	var buf strings.Builder
+	table := tablewriter.NewWriter(&buf)
+	table.SetAutoWrapText(false)
+	table.SetAutoFormatHeaders(false)
+	table.SetHeader(columns)
+	table.AppendBulk(data)
+	table.Render()
+
+	return buf.String(), nil
 }

@@ -13,6 +13,8 @@ func (m Model) View() string {
 	actionBarStyle := lipgloss.NewStyle().
 		Background(lipgloss.Color("#333333")).
 		Foreground(lipgloss.Color("#FFFFFF")).
+		Width(m.width).
+		Align(lipgloss.Center).
 		Padding(0, 1)
 
 	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [e]Query Editor [s]Save [q]Quit ")
@@ -104,12 +106,17 @@ func (m Model) View() string {
 		welcomeText := fig.String()
 
 		welcomeStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ff79c6")) // Electric pink color
+			Foreground(lipgloss.Color("#ff79c6")). // Electric pink color
+			Width(m.width).
+			Align(lipgloss.Center)
 
-		s += welcomeStyle.Render(welcomeText)
+		s += welcomeStyle.Render(welcomeText) + "\n\n"
+		introText := lipgloss.NewStyle().
+			Width(m.width).
+			Align(lipgloss.Center)
 
-		s += "\nPress 'c' to create a new pipeline, or use the action bar shortcuts.\n"
-		s += "Press 'Esc' to exit."
+		s += introText.Render("Welcome to pipeterm! A local data pipeline tool.\n")
+		s += introText.Render("Press 'c' to create a new pipeline")
 		return s
 	}
 
