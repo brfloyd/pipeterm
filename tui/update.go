@@ -178,14 +178,21 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.queryInput) > 0 {
 					m.queryInput = m.queryInput[:len(m.queryInput)-1]
 				}
+			case tea.KeySpace:
+				m.queryInput += " "
 			case tea.KeyRunes:
-				m.queryInput += msg.String()
-			case tea.KeyEsc:
+				m.queryInput += string(msg.Runes)
+			case tea.KeyTab:
+				// Exit the query editor
 				m.inQueryEditor = false
+				m.inDataLakeSelect = true
+				m.selectedDataLake = 0
+				m.queryInput = ""
+				m.queryResult = ""
+
 			}
 			return m, nil
 		}
-
 		switch msg.String() {
 		case "ctrl+c", "ctrl+q", "q":
 			return m, tea.Quit

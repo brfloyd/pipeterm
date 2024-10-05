@@ -34,7 +34,7 @@ func (m Model) View() string {
 		s += fmt.Sprintf("Data Lake: %s\n", m.dataLakes[m.selectedDataLake])
 		s += "Enter your SQL query below:\n\n"
 		s += m.queryInput + "\n"
-		s += "\nPress 'Enter' to execute, 'Esc' to go back."
+		s += "\nPress 'Enter' to execute, 'Tab' to go back."
 		if m.queryResult != "" {
 			s += "\n\nQuery Result:\n" + m.queryResult
 		}
