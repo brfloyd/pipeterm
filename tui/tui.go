@@ -91,14 +91,14 @@ func executeQuery(dataLake string, query string) (string, error) {
 	baseDir := filepath.Join(homeDir, ".local", "share", "pipeterm_lake", dataLake)
 
 	// Create views for each Parquet file in the data lake
-	files, err := filepath.Glob(filepath.Join(baseDir, "*.parquet"))
+	files, err := filepath.Glob(filepath.Join(baseDir, "*.csv"))
 	if err != nil {
 		return "", err
 	}
 
 	for _, file := range files {
 		tableName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
-		createViewQuery := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_parquet('%s');", tableName, file)
+		createViewQuery := fmt.Sprintf("CREATE VIEW %s AS SELECT * FROM read_csv('%s');", tableName, file)
 		_, err := db.Exec(createViewQuery)
 		if err != nil {
 			return "", err
