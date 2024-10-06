@@ -134,6 +134,7 @@ func (m Model) View() string {
 			s += promptStyle.Render("Name your pipeline: ") + m.inputs[0] + "\n"
 			s += "\nPress 'Esc' at any time to return to the welcome screen."
 		case 1:
+
 			s += grayedOutStyle.Render("Name your pipeline: "+m.inputs[0]) + "\n\n"
 			s += promptStyle.Render("Select service to pull from:\n")
 
@@ -142,7 +143,7 @@ func (m Model) View() string {
 				Foreground(lipgloss.Color("#FF7F00"))
 
 			unselectedLineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
-
+			s += "\n"
 			for i, service := range m.services {
 				cursor := "  "
 				lineStyle := unselectedLineStyle
@@ -157,7 +158,7 @@ func (m Model) View() string {
 			s += "\nPress 'Esc' at any time to return to the welcome screen."
 		case 2:
 			s += grayedOutStyle.Render("Name your pipeline: "+m.inputs[0]) + "\n"
-			s += grayedOutStyle.Render("Selected service: "+m.services[m.selectedService]) + "\n\n"
+			s += grayedOutStyle.Render("Selected service: "+m.services[m.selectedService]) + "\n"
 			s += promptStyle.Render("Select data loading type:\n")
 
 			// Define styles
@@ -166,7 +167,7 @@ func (m Model) View() string {
 
 			unselectedLineStyle := lipgloss.NewStyle().
 				Foreground(lipgloss.Color("#FFFFFF"))
-
+			s += "\n"
 			for i, dataType := range m.dataTypes {
 				cursor := "  "
 				lineStyle := unselectedLineStyle
