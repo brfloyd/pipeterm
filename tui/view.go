@@ -185,6 +185,7 @@ func (m Model) View() string {
 			s += grayedOutStyle.Render("Selected service: "+m.services[m.selectedService]) + "\n"
 			s += grayedOutStyle.Render("Data loading type: "+m.dataTypes[m.selectedDataType]) + "\n\n"
 			s += promptStyle.Render("Review your information:\n")
+			s += "\n"
 			s += fmt.Sprintf("Pipeline Name: %s\n", m.inputs[0])
 			s += fmt.Sprintf("Service: %s\n", m.services[m.selectedService])
 			s += fmt.Sprintf("Data Loading Type: %s\n", m.dataTypes[m.selectedDataType])
