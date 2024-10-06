@@ -19,14 +19,24 @@ func (m Model) View() string {
 
 	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [e]Query Editor [s]Save [q]Quit ")
 	s += actionBar + "\n\n"
+
 	if m.inDataLakeSelect {
-		s += "Select a Data Lake:\n"
+
+		//promptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF7F00"))
+		//grayedOutStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
+		unslectedLineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+		selectedLineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF7F00"))
+		s += selectedLineStyle.Render("Select a Data Lake:\n")
+		s += "\n"
 		for i, lake := range m.dataLakes {
 			cursor := "  "
+			lineStyle := unslectedLineStyle
 			if m.selectedDataLake == i {
 				cursor = "> "
+				lineStyle = selectedLineStyle
 			}
-			s += fmt.Sprintf("%s%s\n", cursor, lake)
+			line := cursor + lake
+			s += lineStyle.Render(line) + "\n"
 		}
 		s += "\nUse Up/Down arrows to navigate, 'Enter' to select."
 		return s
