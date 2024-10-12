@@ -164,8 +164,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				m.inDataLakeSelect = false
 				m.inQueryEditor = true
-				m.queryInput = ""
-				m.queryResult = ""
+				//m.queryResult = ""
+				m.queryEditor = NewQueryEditor(m.dataLakes[m.selectedDataLake], m.width, m.height)
+				return m, m.queryEditor.textarea.Cursor.BlinkCmd()
 			case "esc":
 				m.inDataLakeSelect = false
 			}
@@ -173,28 +174,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Handle key messages when in query editor
 		if m.inQueryEditor {
-			switch msg.Type {
-			case tea.KeyEnter:
-				// Execute the query
-				return m, executeQueryCmd(m.dataLakes[m.selectedDataLake], m.queryInput)
-			case tea.KeyBackspace, tea.KeyDelete:
-				if len(m.queryInput) > 0 {
-					m.queryInput = m.queryInput[:len(m.queryInput)-1]
-				}
-			case tea.KeySpace:
-				m.queryInput += " "
-			case tea.KeyRunes:
-				m.queryInput += string(msg.Runes)
-			case tea.KeyTab:
-				// Exit the query editor
-				m.inQueryEditor = false
-				m.inDataLakeSelect = true
-				m.selectedDataLake = 0
-				m.queryInput = ""
-				m.queryResult = ""
-
-			}
-			return m, nil
+			var cmd tea.Cmd
+			var qe *QueryEditor
+			qe, cmd = m.queryEditor.Update(msg)
+			m.queryEditor = qe
+			return m, cmd
 		}
 		switch msg.String() {
 		case "ctrl+c", "ctrl+q", "q":

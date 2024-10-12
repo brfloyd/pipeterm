@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -32,6 +33,7 @@ type Model struct {
 	queryResult      string
 	width            int
 	height           int
+	queryEditor      *QueryEditor
 }
 
 func InitialModel() Model {
@@ -39,6 +41,7 @@ func InitialModel() Model {
 	if err != nil {
 		fmt.Println("Error listing data lakes:", err)
 	}
+
 	return Model{
 		// Start with the welcome screen when booting up the tool
 
@@ -53,6 +56,7 @@ func InitialModel() Model {
 		confirmReset:     false,
 		progress:         progress.New(progress.WithDefaultGradient()),
 		dataLakes:        dataLakes,
+		inQueryEditor:    false,
 	}
 }
 
