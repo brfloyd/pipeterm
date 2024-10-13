@@ -43,13 +43,12 @@ func (m Model) View() string {
 	}
 
 	if m.inQueryEditor {
-		s += fmt.Sprintf("Data Lake: %s\n", m.dataLakes[m.selectedDataLake])
-		s += "Enter your SQL query below:\n\n"
-		s += m.queryInput + "\n"
-		s += "\nPress 'Enter' to execute, 'Tab' to go back."
+		s += m.queryEditor.View()
+		s += "\n\nPress 'esc' to return to the data lake selection.\n\n"
 		if m.queryResult != "" {
-			s += "\n\nQuery Result:\n" + m.queryResult
+			s += m.queryResult
 		}
+
 		return s
 	}
 	if m.confirmReset {
@@ -141,7 +140,13 @@ func (m Model) View() string {
 
 		switch m.stage {
 		case 0:
-			s += promptStyle.Render("Name your pipeline: ") + m.inputs[0] + "\n"
+			s += promptStyle.Render("Name your pipeline: ") + "\n\n"
+			if m.textInput != nil {
+				s += m.textInput.View()
+			} else {
+				s += "<no text input>"
+			}
+
 			s += "\nPress 'Esc' at any time to return to the welcome screen."
 		case 1:
 
