@@ -15,6 +15,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
+	case TextInputDoneMsg:
+		// Store the input value and proceed to the next stage
+		m.inputs[0] = string(msg)
+		m.stage++
+		m.cursorPosition = 0
+		// Reset text input if needed
+		m.textInput = newTextInput()
+		return m, nil
+
 	case progress.FrameMsg:
 		var cmd tea.Cmd
 		var newModel tea.Model
@@ -102,22 +111,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// During text input stages, process keys as input characters
 		if m.state == "create_pipeline" && m.stage == 0 {
-			switch msg.Type {
-			case tea.KeyEnter:
-				if len(m.inputs[0]) > 0 {
-					m.stage++
-					m.cursorPosition = 0
-				}
-			case tea.KeyBackspace, tea.KeyDelete:
-				if len(m.inputs[0]) > 0 {
-					m.inputs[0] = m.inputs[0][:len(m.inputs[0])-1]
-				}
-			case tea.KeyRunes:
-				m.inputs[0] += msg.String()
-			default:
-
-			}
-			return m, nil
+			var cmd tea.Cmd
+			var ti tea.Model
+			ti, cmd = m.textInput.Update(msg)
+			m.textInput = ti.(*TextInputModel)
+			return m, cmd
 		}
 
 		// Handle action bar shortcuts

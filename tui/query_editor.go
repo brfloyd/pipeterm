@@ -21,7 +21,6 @@ func NewQueryEditor(dataLake string, width, height int) *QueryEditor {
 	ta := textarea.New()
 	ta.Placeholder = "Enter your SQL query..."
 	ta.Focus()
-	ta.Prompt = "┃ "
 	ta.CharLimit = 0 // No character limit
 	ta.SetWidth(width)
 	ta.SetHeight(height - 5)

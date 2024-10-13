@@ -140,7 +140,13 @@ func (m Model) View() string {
 
 		switch m.stage {
 		case 0:
-			s += promptStyle.Render("Name your pipeline: ") + m.inputs[0] + "\n"
+			s += promptStyle.Render("Name your pipeline: ") + "\n\n"
+			if m.textInput != nil {
+				s += m.textInput.View()
+			} else {
+				s += "<no text input>"
+			}
+
 			s += "\nPress 'Esc' at any time to return to the welcome screen."
 		case 1:
 

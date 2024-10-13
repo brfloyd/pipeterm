@@ -34,6 +34,7 @@ type Model struct {
 	width            int
 	height           int
 	queryEditor      *QueryEditor
+	textInput        *TextInputModel
 }
 
 func InitialModel() Model {
@@ -57,9 +58,10 @@ func InitialModel() Model {
 		progress:         progress.New(progress.WithDefaultGradient()),
 		dataLakes:        dataLakes,
 		inQueryEditor:    false,
+		textInput:        newTextInput(),
 	}
 }
 
 func (m Model) Init() tea.Cmd {
-	return createDataLakeFolder()
+	return tea.Batch(m.textInput.Init(), createDataLakeFolder())
 }
