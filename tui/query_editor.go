@@ -25,8 +25,8 @@ func NewQueryEditor(dataLake string, width, height int) *QueryEditor {
 	ta.SetWidth(width)
 	ta.SetHeight(height - 5)
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
-	ta.ShowLineNumbers = false
-	ta.KeyMap.InsertNewline.SetEnabled(false)
+	ta.ShowLineNumbers = true
+	ta.KeyMap.InsertNewline.SetEnabled(true)
 	vp := viewport.New(30, 5)
 	vp.SetContent("Query results will appear here.")
 
@@ -57,7 +57,7 @@ func (qe *QueryEditor) Update(msg tea.Msg) (*QueryEditor, tea.Cmd) {
 			// Exit the query editor
 			return qe, func() tea.Msg { return exitEditorMsg{} }
 
-		case msg.String() == "enter":
+		case msg.Type == tea.KeyCtrlE:
 			// Execute the query
 			query := qe.textarea.Value()
 			return qe, executeQueryCmd(qe.dataLake, query)
