@@ -88,27 +88,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Handle Escape key to return home or quit
-		if msg.Type == tea.KeyEsc {
-			if m.state != "welcome" {
-				if m.currentScreen == "running_script" {
-					if m.scriptCancel != nil {
-						m.scriptCancel()
-					}
-					m.currentScreen = "welcome"
-					m.state = "welcome"
-					m.stage = 0
-					m.inputs = []string{"", "", ""}
-					m.cursorPosition = 0
-					return m, nil
-				}
-				m.confirmReset = true
-			} else {
-				return m, tea.Quit
-			}
-			return m, nil
-		}
-
 		// During text input stages, process keys as input characters
 		if m.state == "create_pipeline" && m.stage == 0 {
 			var cmd tea.Cmd
@@ -130,7 +109,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentScreen = "pipelines"
 			case "s":
 				m.currentScreen = "save"
-			case "q", "ctrl+c", "ctrl+q":
+			case "ctrl+c", "ctrl+q":
 				return m, tea.Quit
 			case "c":
 				m.state = "create_pipeline"
@@ -165,19 +144,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				//m.queryResult = ""
 				m.queryEditor = NewQueryEditor(m.dataLakes[m.selectedDataLake], m.width, m.height)
 				return m, m.queryEditor.textarea.Cursor.BlinkCmd()
-			case "esc":
+			case "q":
 				m.inDataLakeSelect = false
+				m.currentScreen = "welcome"
 			}
 			return m, nil
 		}
 		// Handle key messages when in query editor
 		if m.inQueryEditor {
+			if msg.Type == tea.KeyEsc {
+				m.inQueryEditor = false
+				m.inDataLakeSelect = true
+				m.currentScreen = "welcome"
+				return m, nil
+			}
 			var cmd tea.Cmd
 			var qe *QueryEditor
 			qe, cmd = m.queryEditor.Update(msg)
 			m.queryEditor = qe
 			return m, cmd
 		}
+
+		// Handle Escape key to return home or quit
+		if msg.Type == tea.KeyEsc {
+			if m.state != "welcome" {
+				if m.currentScreen == "running_script" {
+					if m.scriptCancel != nil {
+						m.scriptCancel()
+					}
+					m.currentScreen = "welcome"
+					m.state = "welcome"
+					m.stage = 0
+					m.inputs = []string{"", "", ""}
+					m.cursorPosition = 0
+					return m, nil
+				}
+				m.confirmReset = true
+			} else {
+				return m, tea.Quit
+			}
+			return m, nil
+		}
+
 		switch msg.String() {
 		case "ctrl+c", "ctrl+q", "q":
 			return m, tea.Quit
