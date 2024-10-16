@@ -21,9 +21,6 @@ func (m Model) View() string {
 	s += actionBar + "\n\n"
 
 	if m.inDataLakeSelect {
-
-		//promptStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF7F00"))
-		//grayedOutStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#666666"))
 		unslectedLineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
 		selectedLineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FF7F00"))
 		s += selectedLineStyle.Render("Select a Data Lake:\n")
@@ -68,11 +65,6 @@ func (m Model) View() string {
 			s += "Use the shortcut keys indicated in the action bar to navigate.\n"
 			s += "Press 'Esc' at any time to return to the welcome screen.\n"
 			s += "\nPress any key to return."
-		case "query editor":
-			s += "Query Editor:\n"
-			s += "Enter your query here.\n"
-			s += "\nPress any key to return."
-
 		case "pipelines":
 			s += "Active Pipelines:\n"
 			s += "- Pipeline 1\n" // Hardcoded for now

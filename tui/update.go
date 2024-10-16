@@ -116,7 +116,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.stage = 0
 				m.currentScreen = ""
 			case "e":
-				m.currentScreen = "query editor"
 				m.inDataLakeSelect = true
 				m.selectedDataLake = 0
 				return m, nil
@@ -146,17 +145,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, m.queryEditor.textarea.Cursor.BlinkCmd()
 			case "q":
 				m.inDataLakeSelect = false
-				m.currentScreen = "welcome"
+
 			}
 			return m, nil
 		}
 		// Handle key messages when in query editor
 		if m.inQueryEditor {
 			if msg.Type == tea.KeyEsc {
+
 				m.inQueryEditor = false
 				m.inDataLakeSelect = true
-				m.currentScreen = "welcome"
-				return m, nil
+				return m, tea.ClearScreen
 			}
 			var cmd tea.Cmd
 			var qe *QueryEditor
@@ -212,9 +211,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case "e":
-			m.currentScreen = "query editor"
 			m.inDataLakeSelect = true
-			m.selectedDataLake = 0
 			return m, nil
 		}
 

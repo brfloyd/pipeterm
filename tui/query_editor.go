@@ -53,10 +53,6 @@ func (qe *QueryEditor) Update(msg tea.Msg) (*QueryEditor, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case msg.String() == "esc":
-			// Exit the query editor
-			return qe, func() tea.Msg { return exitEditorMsg{} }
-
 		case msg.Type == tea.KeyCtrlE:
 			query := qe.textarea.Value()
 			return qe, func() tea.Msg {
@@ -67,6 +63,7 @@ func (qe *QueryEditor) Update(msg tea.Msg) (*QueryEditor, tea.Cmd) {
 				return queryResultMsg{result: result, err: nil}
 			}
 		default:
+
 			qe.textarea, cmd = qe.textarea.Update(msg)
 			return qe, cmd
 		}
