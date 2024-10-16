@@ -58,10 +58,14 @@ func (qe *QueryEditor) Update(msg tea.Msg) (*QueryEditor, tea.Cmd) {
 			return qe, func() tea.Msg { return exitEditorMsg{} }
 
 		case msg.Type == tea.KeyCtrlE:
-			// Execute the query
 			query := qe.textarea.Value()
-			return qe, executeQueryCmd(qe.dataLake, query)
-
+			return qe, func() tea.Msg {
+				result, err := executeQuery(qe.dataLake, query)
+				if err != nil {
+					return queryResultMsg{result: "", err: err}
+				}
+				return queryResultMsg{result: result, err: nil}
+			}
 		default:
 			qe.textarea, cmd = qe.textarea.Update(msg)
 			return qe, cmd
