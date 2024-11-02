@@ -20,8 +20,8 @@ func newTextInput() *TextInputModel {
 	ti := textinput.New()
 	ti.Placeholder = "type name..."
 	ti.Focus()
-	ti.CharLimit = 20
-	ti.Width = 20
+	ti.CharLimit = 156
+	ti.Width = 156
 
 	return &TextInputModel{
 		textInput: ti,

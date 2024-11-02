@@ -159,6 +159,9 @@ func (m Model) View() string {
 					lineStyle = selectedLineStyle
 				}
 				line := cursor + service
+				if service == "Bring Your Own Data" {
+					line += " " + m.textInput.View()
+				}
 				s += lineStyle.Render(line) + "\n"
 			}
 			s += "\nUse Up/Down arrows to navigate, 'Enter' to select."
