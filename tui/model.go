@@ -10,31 +10,33 @@ import (
 
 // Model represents the state of the UI
 type Model struct {
-	state            string
-	stage            int
-	pipelineName     string
-	services         []string
-	selectedService  int
-	dataTypes        []string
-	selectedDataType int
-	cursorPosition   int
-	inputs           []string
-	currentScreen    string
-	confirmReset     bool
-	progress         progress.Model
-	progressValue    float64
-	scriptOutput     string
-	scriptCancel     context.CancelFunc
-	dataLakes        []string
-	selectedDataLake int
-	inDataLakeSelect bool
-	inQueryEditor    bool
-	queryInput       string
-	queryResult      string
-	width            int
-	height           int
-	queryEditor      *QueryEditor
-	textInput        *TextInputModel
+	state             string
+	stage             int
+	pipelineName      string
+	services          []string
+	selectedService   int
+	dataTypes         []string
+	selectedDataType  int
+	cursorPosition    int
+	inputs            []string
+	currentScreen     string
+	confirmReset      bool
+	progress          progress.Model
+	progressValue     float64
+	scriptOutput      string
+	scriptCancel      context.CancelFunc
+	dataLakes         []string
+	selectedDataLake  int
+	inDataLakeSelect  bool
+	inQueryEditor     bool
+	queryInput        string
+	queryResult       string
+	width             int
+	height            int
+	queryEditor       *QueryEditor
+	textInput         *TextInputModel
+	textInputActive   bool
+	customServiceName string
 }
 
 func InitialModel() Model {
@@ -47,7 +49,7 @@ func InitialModel() Model {
 		// Start with the welcome screen when booting up the tool
 
 		state:            "welcome",
-		services:         []string{"Salesforce", "Monday", "HubSpot"},
+		services:         []string{"Salesforce", "Monday", "HubSpot", "Bring Your Own Data"},
 		dataTypes:        []string{"All Data", "Batch"},
 		selectedService:  0,
 		selectedDataType: 0,

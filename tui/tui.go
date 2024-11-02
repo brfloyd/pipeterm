@@ -30,6 +30,20 @@ func runScriptCmd(ctx context.Context) tea.Cmd {
 	}
 }
 
+func runByodScriptCmd(ctx context.Context, userScriptPath string) tea.Cmd {
+	return func() tea.Msg {
+		cmd := exec.CommandContext(ctx, "python3", "/Users/brettfloyd/pipeterm/utils/byod.py", userScriptPath)
+		output, err := cmd.CombinedOutput()
+		if ctx.Err() == context.Canceled {
+			return scriptErrorMsg{err: fmt.Errorf("script canceled")}
+		}
+		if err != nil {
+			return scriptErrorMsg{err: err}
+		}
+		return scriptSuccessMsg(string(output))
+	}
+}
+
 func createDataLakeFolder() tea.Cmd {
 	return func() tea.Msg {
 		cmd := exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/create_pipeterm_lake.py")

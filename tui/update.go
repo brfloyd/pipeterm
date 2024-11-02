@@ -72,6 +72,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		if m.textInputActive {
+			var cmd tea.Cmd
+			var ti tea.Model
+			ti, cmd = m.textInput.Update(msg)
+			m.textInput = ti.(*TextInputModel)
+
+			// Handle completion of text input
+			if msg.Type == tea.KeyEnter {
+				// Store the input value
+				m.customServiceName = m.textInput.textInput.Value()
+				m.selectedService = m.cursorPosition
+				m.textInputActive = false
+				m.stage++
+				m.cursorPosition = 0
+				m.textInput = nil // Reset text input
+			}
+			return m, cmd
+		}
 
 		if m.confirmReset {
 			switch msg.String() {
@@ -236,9 +254,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.cursorPosition++
 					}
 				case "enter":
-					m.selectedService = m.cursorPosition
-					m.stage++
-					m.cursorPosition = 0
+					if m.cursorPosition == 3 {
+						m.textInputActive = true
+						m.textInput = newTextInput()
+
+						return m, nil
+
+					} else {
+
+						m.stage++
+						m.cursorPosition = 0
+					}
 				}
 			case 2:
 				switch msg.String() {
@@ -262,8 +288,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Create a context to cancel the script if needed
 					var ctx context.Context
 					ctx, m.scriptCancel = context.WithCancel(context.Background())
+					var cmd tea.Cmd
+					if m.selectedService == 3 {
+						cmd = runByodScriptCmd(ctx, m.customServiceName)
+					} else {
+						cmd = runScriptCmd(ctx)
+					}
 					// Start the script and progress bar
-					return m, tea.Batch(runScriptCmd(ctx), incrementProgressCmd())
+					return m, tea.Batch(cmd, incrementProgressCmd())
 				}
 			}
 		}
