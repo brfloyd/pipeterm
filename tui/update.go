@@ -125,8 +125,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentScreen = "about"
 			case "p":
 				m.currentScreen = "pipelines"
-			case "s":
-				m.currentScreen = "save"
 			case "ctrl+c", "ctrl+q":
 				return m, tea.Quit
 			case "c":
@@ -217,10 +215,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "p":
 			m.currentScreen = "pipelines"
-			return m, nil
-
-		case "s":
-			m.currentScreen = "save"
 			return m, nil
 
 		case "c":

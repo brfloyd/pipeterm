@@ -17,7 +17,7 @@ func (m Model) View() string {
 		Align(lipgloss.Center).
 		Padding(0, 1)
 
-	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [e]Query Editor [s]Save [q]Quit ")
+	actionBar := actionBarStyle.Render(" [c]Create Pipeline [?]Help [a]About [p]Pipelines [e]Query Editor [q]Quit ")
 	s += actionBar + "\n\n"
 
 	if m.inDataLakeSelect {
@@ -70,10 +70,6 @@ func (m Model) View() string {
 			s += "- Pipeline 1\n" // Hardcoded for now
 			s += "- Pipeline 2\n"
 			s += "\nPress any key to return."
-		case "save":
-			s += "Saving your progress...\n"
-			s += "Progress saved successfully.\n"
-			s += "\nPress any key to continue."
 		case "pipeline_created":
 			s += "Pipeline created successfully!\n"
 			s += fmt.Sprintf("Script output: %s\n", m.scriptOutput)
