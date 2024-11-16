@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from api.endpoints import router as api_router
+from api.v1.endpoints import router as api_router
 
-app = FastApi(
+app = FastAPI(
     title="Pipeterm API",
     description="API for Accesing Pipeterm Datalake",
     version="1.0.0",

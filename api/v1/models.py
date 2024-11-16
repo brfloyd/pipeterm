@@ -4,5 +4,5 @@ class QueryRequest(BaseModel):
     sql: str
 
 class QueryResponse(BaseModel):
-    columns: List[str]
-    rows: List[str]
+    columns: list[str]
+    rows: list[str]
