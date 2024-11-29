@@ -39,6 +39,8 @@ type Model struct {
 	customServiceName string
 }
 
+//Add connection to the API
+
 func InitialModel() Model {
 	dataLakes, err := listDataLakes()
 	if err != nil {
