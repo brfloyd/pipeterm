@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -13,6 +14,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		m.width = msg.Width
 		m.height = msg.Height
+
+		//Updates the pipeline tab model size
+		if m.pipelinesModel != nil {
+			m.pipelinesModel.SetSize(m.width, m.height)
+		}
 		return m, nil
 
 	case TextInputDoneMsg:
@@ -124,7 +130,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "a":
 				m.currentScreen = "about"
 			case "p":
-				m.currentScreen = "pipelines"
+				m.inPipelinesTab = true
+				m.currentScreen = ""
+				return m, nil
 			case "ctrl+c", "ctrl+q":
 				return m, tea.Quit
 			case "c":
@@ -142,6 +150,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+
+		if m.inPipelinesTab {
+			switch msg.String() {
+			case "esc", "q":
+				m.inPipelinesTab = false
+				return m, nil
+			default:
+				var cmd tea.Cmd
+				m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
+				return m, cmd
+			}
+		}
+
 		// Handle data lake selection
 		if m.inDataLakeSelect {
 			switch msg.String() {
