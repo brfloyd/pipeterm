@@ -49,6 +49,11 @@ func (m Model) View() string {
 
 		return s
 	}
+
+	if m.inPipelinesTab {
+		return m.pipelinesModel.View()
+	}
+
 	if m.confirmReset {
 		s += "Are you sure you want to return to the welcome screen and discard unsaved changes? (y/n)"
 		return s
