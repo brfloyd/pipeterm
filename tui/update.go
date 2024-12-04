@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"time"
 
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
@@ -53,15 +54,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scriptOutput = string(msg)
 		m.progressValue = 1.0
 		cmd := m.progress.SetPercent(1.0)
-
 		newPipeline := Pipeline{
 			Name:      m.inputs[0],
 			Status:    "Idle",
 			Healthy:   true,
 			Running:   false,
+			LastRun:   time.Now(), // Set the initial run time
 			Logs:      []string{"Pipeline Created."},
 			CronExpr:  "",
-			animation: []string{"|", "/", "-", "\\"},
+			animation: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 			animIndex: 0,
 		}
 		m.pipelinesModel.AddPipeline(newPipeline)

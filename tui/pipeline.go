@@ -178,6 +178,9 @@ func (m *PipelinesModel) AddPipeline(p Pipeline) {
 		p.Status = "Idle"
 	}
 
+	// Set the initial run time to current time
+	p.LastRun = time.Now()
+
 	m.pipelines = append(m.pipelines, p)
 	m.nextID++
 
@@ -391,7 +394,6 @@ func (m *PipelinesModel) schedulePipeline(cronExpr string) {
 }
 
 func runPipeline(p Pipeline) {
-	// Implement pipeline execution logic here
 }
 
 func (m *PipelinesModel) SetSize(width, height int) {
