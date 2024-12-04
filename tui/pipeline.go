@@ -163,6 +163,7 @@ func (m *PipelinesModel) LoadPipelines() error {
 	if err != nil {
 		return err
 	}
+	//New mr
 
 	pipelinePath := filepath.Join(storageDir, "pipelines.json")
 
