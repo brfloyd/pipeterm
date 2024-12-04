@@ -53,6 +53,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scriptOutput = string(msg)
 		m.progressValue = 1.0
 		cmd := m.progress.SetPercent(1.0)
+
+		newPipeline := Pipeline{
+			Name:      m.inputs[0],
+			Status:    "Idle",
+			Healthy:   true,
+			Running:   false,
+			Logs:      []string{"Pipeline Created."},
+			CronExpr:  "",
+			animation: []string{"|", "/", "-", "\\"},
+			animIndex: 0,
+		}
+		m.pipelinesModel.AddPipeline(newPipeline)
+
 		return m, cmd
 
 	case scriptErrorMsg:
@@ -131,7 +144,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentScreen = "about"
 			case "p":
 				m.inPipelinesTab = true
-				m.currentScreen = ""
+				m.currentScreen = "pipelines"
+
 				return m, nil
 			case "ctrl+c", "ctrl+q":
 				return m, tea.Quit
@@ -154,6 +168,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.inPipelinesTab {
 			switch msg.String() {
 			case "esc", "q":
+				m.currentScreen = ""
+				m.state = "welcome"
 				m.inPipelinesTab = false
 				return m, nil
 			default:
@@ -236,6 +252,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "p":
 			m.currentScreen = "pipelines"
+			m.inPipelinesTab = true
+
 			return m, nil
 
 		case "c":
