@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,36 +17,33 @@ import (
 )
 
 type Pipeline struct {
-	ID        int
-	Name      string
-	Status    string
-	LastRun   time.Time
-	NextRun   time.Time
-	Healthy   bool
-	Running   bool
-	Logs      []string
-	CronExpr  string
-	CronID    cron.EntryID
-	cron      *cron.Cron
-	animation []string
-	animIndex int
+	ID        int          `json:"id"`
+	Name      string       `json:"name"`
+	Status    string       `json:"status"`
+	LastRun   time.Time    `json:"last_run"`
+	NextRun   time.Time    `json:"next_run"`
+	Healthy   bool         `json:"healthy"`
+	Running   bool         `json:"running"`
+	Logs      []string     `json:"logs"`
+	CronExpr  string       `json:"cron_expr"`
+	CronID    cron.EntryID `json:"-"` // Don't store in JSON
+	cron      *cron.Cron   `json:"-"` // Don't store in JSON
+	animation []string     `json:"animation"`
+	animIndex int          `json:"anim_index"`
+}
+
+type PipelineStorage struct {
+	Pipelines []Pipeline `json:"pipelines"`
+	NextID    int        `json:"next_id"`
 }
 
 type pipelineItem struct {
 	pipeline Pipeline
 }
 
-func (i pipelineItem) Title() string {
-	return i.pipeline.Name
-}
-
-func (i pipelineItem) Description() string {
-	return i.pipeline.Status
-}
-
-func (i pipelineItem) FilterValue() string {
-	return i.pipeline.Name
-}
+func (i pipelineItem) Title() string       { return i.pipeline.Name }
+func (i pipelineItem) Description() string { return i.pipeline.Status }
+func (i pipelineItem) FilterValue() string { return i.pipeline.Name }
 
 type pipelineDelegate struct{}
 
@@ -83,7 +83,9 @@ func (d pipelineDelegate) Render(w io.Writer, m list.Model, index int, listItem 
 	baseStyle := lipgloss.NewStyle().PaddingRight(1)
 	selectedStyle := lipgloss.NewStyle().Background(lipgloss.Color("7"))
 
-	name := baseStyle.Copy().Width(nameWidth).Foreground(statusColor).Render(fmt.Sprintf("%s %s", statusSymbol, p.Name))
+	name := baseStyle.Copy().Width(nameWidth).
+		Foreground(statusColor).
+		Render(fmt.Sprintf("%s %s", statusSymbol, p.Name))
 	status := baseStyle.Copy().Width(statusWidth).Render(p.Status)
 	health := baseStyle.Copy().Width(healthWidth).Render(getBoolEmoji(p.Healthy))
 	schedule := baseStyle.Copy().Width(scheduleWidth).Render(getScheduleDisplay(p.CronExpr))
@@ -122,6 +124,74 @@ type PipelinesModel struct {
 	nextID          int
 }
 
+func getStorageDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	storageDir := filepath.Join(homeDir, ".local", "share", "pipeterm_storage")
+	return storageDir, nil
+}
+
+func (m *PipelinesModel) SavePipelines() error {
+	storageDir, err := getStorageDir()
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(storageDir, 0755); err != nil {
+		return err
+	}
+
+	storage := PipelineStorage{
+		Pipelines: m.pipelines,
+		NextID:    m.nextID,
+	}
+
+	data, err := json.Marshal(storage)
+	if err != nil {
+		return err
+	}
+
+	pipelinePath := filepath.Join(storageDir, "pipelines.json")
+	return os.WriteFile(pipelinePath, data, 0644)
+}
+
+func (m *PipelinesModel) LoadPipelines() error {
+	storageDir, err := getStorageDir()
+	if err != nil {
+		return err
+	}
+
+	pipelinePath := filepath.Join(storageDir, "pipelines.json")
+
+	if _, err := os.Stat(pipelinePath); os.IsNotExist(err) {
+		return nil // No saved pipelines yet
+	}
+
+	data, err := os.ReadFile(pipelinePath)
+	if err != nil {
+		return err
+	}
+
+	var storage PipelineStorage
+	if err := json.Unmarshal(data, &storage); err != nil {
+		return err
+	}
+
+	m.pipelines = storage.Pipelines
+	m.nextID = storage.NextID
+
+	items := make([]list.Item, len(m.pipelines))
+	for i, p := range m.pipelines {
+		items[i] = pipelineItem{pipeline: p}
+	}
+	m.list.SetItems(items)
+
+	return nil
+}
+
 func NewPipelinesModel(width, height int) *PipelinesModel {
 	m := &PipelinesModel{
 		pipelines: make([]Pipeline, 0),
@@ -132,7 +202,6 @@ func NewPipelinesModel(width, height int) *PipelinesModel {
 	}
 
 	delegate := pipelineDelegate{}
-
 	listHeight := height - 2
 	if listHeight < 1 {
 		listHeight = 1
@@ -146,6 +215,11 @@ func NewPipelinesModel(width, height int) *PipelinesModel {
 	m.viewport = viewport.New(width, height)
 	m.logsViewport = viewport.New(width, height)
 	m.logsViewport.SetContent("press 'l' to show logs")
+
+	// Load saved pipelines
+	if err := m.LoadPipelines(); err != nil {
+		fmt.Printf("Error loading pipelines: %v\n", err)
+	}
 
 	m.startAnimation()
 	m.startHealthChecks()
@@ -177,8 +251,6 @@ func (m *PipelinesModel) AddPipeline(p Pipeline) {
 	if p.Status == "" {
 		p.Status = "Idle"
 	}
-
-	// Set the initial run time to current time
 	p.LastRun = time.Now()
 
 	m.pipelines = append(m.pipelines, p)
@@ -189,6 +261,9 @@ func (m *PipelinesModel) AddPipeline(p Pipeline) {
 		items[i] = pipelineItem{pipeline: pipeline}
 	}
 	m.list.SetItems(items)
+
+	// Save after adding
+	m.SavePipelines()
 }
 
 func (m *PipelinesModel) startHealthChecks() {
@@ -205,6 +280,8 @@ func (m *PipelinesModel) checkPipelinesHealth() {
 		healthy := checkPipelineAPI(p)
 		m.pipelines[i].Healthy = healthy
 	}
+	// Save after health check updates
+	m.SavePipelines()
 }
 
 func checkPipelineAPI(p Pipeline) bool {
@@ -218,6 +295,7 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
+			m.SavePipelines() // Save before quitting
 			return m, tea.Quit
 		case "l":
 			if !m.showLogs && len(m.pipelines) > 0 {
