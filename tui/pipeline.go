@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -13,23 +14,27 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gorhill/cronexpr"
 	"github.com/robfig/cron/v3"
 )
 
 type Pipeline struct {
-	ID        int          `json:"id"`
-	Name      string       `json:"name"`
-	Status    string       `json:"status"`
-	LastRun   time.Time    `json:"last_run"`
-	NextRun   time.Time    `json:"next_run"`
-	Healthy   bool         `json:"healthy"`
-	Running   bool         `json:"running"`
-	Logs      []string     `json:"logs"`
-	CronExpr  string       `json:"cron_expr"`
-	CronID    cron.EntryID `json:"-"` // Don't store in JSON
-	cron      *cron.Cron   `json:"-"` // Don't store in JSON
-	animation []string     `json:"animation"`
-	animIndex int          `json:"anim_index"`
+	ID             int          `json:"id"`
+	Name           string       `json:"name"`
+	Status         string       `json:"status"`
+	LastRun        time.Time    `json:"last_run"`
+	NextRun        time.Time    `json:"next_run"`
+	Healthy        bool         `json:"healthy"`
+	Running        bool         `json:"running"`
+	Logs           []string     `json:"logs"`
+	CronExpr       string       `json:"cron_expr"`
+	CronID         cron.EntryID `json:"-"`
+	cron           *cron.Cron   `json:"-"`
+	animation      []string     `json:"animation"`
+	animIndex      int          `json:"anim_index"`
+	ScriptPath     string       `json:"script_path"`
+	ScriptType     string       `json:"script_type"`
+	LastScriptPath string       `json:"last_script_path"`
 }
 
 type PipelineStorage struct {
@@ -39,6 +44,12 @@ type PipelineStorage struct {
 
 type pipelineItem struct {
 	pipeline Pipeline
+}
+
+type runPipelineMsg struct {
+	ID     int
+	Output string
+	Error  error
 }
 
 func (i pipelineItem) Title() string       { return i.pipeline.Name }
@@ -59,6 +70,11 @@ func (d pipelineDelegate) Render(w io.Writer, m list.Model, index int, listItem 
 
 	p := item.pipeline
 
+	// Add safety check for animation index
+	if p.Running && len(p.animation) > 0 && p.animIndex >= len(p.animation) {
+		p.animIndex = 0
+	}
+
 	nameWidth := 20
 	statusWidth := 15
 	healthWidth := 10
@@ -70,7 +86,11 @@ func (d pipelineDelegate) Render(w io.Writer, m list.Model, index int, listItem 
 	var statusColor lipgloss.Color
 
 	if p.Running {
-		statusSymbol = p.animation[p.animIndex]
+		if len(p.animation) > 0 {
+			statusSymbol = p.animation[p.animIndex]
+		} else {
+			statusSymbol = "⋯" // fallback symbol if no animation frames
+		}
 		statusColor = lipgloss.Color("5")
 	} else if p.Healthy {
 		statusSymbol = "✔"
@@ -124,6 +144,21 @@ type PipelinesModel struct {
 	nextID          int
 }
 
+func (m *PipelinesModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+
+	listHeight := height - 2
+	if listHeight < 1 {
+		listHeight = 1
+	}
+
+	m.list.SetSize(width, listHeight)
+	m.viewport.Width = width
+	m.viewport.Height = height
+	m.logsViewport.Width = width
+	m.logsViewport.Height = height
+}
 func getStorageDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -163,7 +198,6 @@ func (m *PipelinesModel) LoadPipelines() error {
 	if err != nil {
 		return err
 	}
-	//New mr
 
 	pipelinePath := filepath.Join(storageDir, "pipelines.json")
 
@@ -189,6 +223,41 @@ func (m *PipelinesModel) LoadPipelines() error {
 		items[i] = pipelineItem{pipeline: p}
 	}
 	m.list.SetItems(items)
+
+	// Restore cron jobs
+	m.cron.Stop()                         // Stop existing cron
+	m.cron = cron.New(cron.WithSeconds()) // Create new cron scheduler
+
+	// Restore all scheduled pipelines
+	for i, p := range m.pipelines {
+		if p.CronExpr != "" {
+			// Add "0 " prefix if it's a 5-field expression
+			cronExpr := p.CronExpr
+			if len(strings.Fields(cronExpr)) == 5 {
+				cronExpr = "0 " + cronExpr
+			}
+
+			pipelineID := p.ID
+			entryID, err := m.cron.AddFunc(cronExpr, func() {
+				// Find the pipeline by ID
+				var pipelineIndex int
+				for j, pipeline := range m.pipelines {
+					if pipeline.ID == pipelineID {
+						pipelineIndex = j
+						break
+					}
+				}
+
+				_, _ = m.executePipeline(pipelineIndex)
+			})
+
+			if err == nil {
+				m.pipelines[i].CronID = entryID
+			}
+		}
+	}
+
+	m.cron.Start() // Start the scheduler
 
 	return nil
 }
@@ -224,6 +293,7 @@ func NewPipelinesModel(width, height int) *PipelinesModel {
 
 	m.startAnimation()
 	m.startHealthChecks()
+	m.cron.Start()
 
 	return m
 }
@@ -233,7 +303,7 @@ func (m *PipelinesModel) startAnimation() {
 	go func() {
 		for range m.animationTicker.C {
 			for i, p := range m.pipelines {
-				if p.Running {
+				if p.Running && len(p.animation) > 0 { // Add check for animation length
 					m.pipelines[i].animIndex = (p.animIndex + 1) % len(p.animation)
 				}
 			}
@@ -243,9 +313,10 @@ func (m *PipelinesModel) startAnimation() {
 
 func (m *PipelinesModel) AddPipeline(p Pipeline) {
 	p.ID = m.nextID
-	if p.animation == nil {
-		p.animation = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	}
+	// Always initialize animation array
+	p.animation = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	p.animIndex = 0
+
 	if len(p.Logs) == 0 {
 		p.Logs = []string{"[Pipeline Created.]"}
 	}
@@ -263,7 +334,6 @@ func (m *PipelinesModel) AddPipeline(p Pipeline) {
 	}
 	m.list.SetItems(items)
 
-	// Save after adding
 	m.SavePipelines()
 }
 
@@ -295,11 +365,44 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
-			m.SavePipelines() // Save before quitting
+		case "q":
+			// Only quit the entire app if we're in the main pipeline view
+			if !m.showLogs && !m.showScheduler {
+				m.SavePipelines()
+				return m, nil
+			}
+			// Otherwise ignore 'q' in sub-views
+		case "ctrl+c":
+			m.SavePipelines()
 			return m, tea.Quit
+		case "r":
+			if len(m.pipelines) > 0 {
+				selectedIndex := m.list.Index()
+				if !m.pipelines[selectedIndex].Running {
+					return m, m.RunPipeline(selectedIndex)
+				}
+			}
+		case "d":
+			if len(m.pipelines) > 0 && !m.showLogs && !m.showScheduler {
+				selectedIndex := m.list.Index()
+				// Remove from cron if scheduled
+				if m.pipelines[selectedIndex].CronID != 0 {
+					m.cron.Remove(m.pipelines[selectedIndex].CronID)
+				}
+				// Remove the pipeline
+				if selectedIndex < len(m.pipelines) {
+					m.pipelines = append(m.pipelines[:selectedIndex], m.pipelines[selectedIndex+1:]...)
+					// Update the list
+					items := make([]list.Item, len(m.pipelines))
+					for i, p := range m.pipelines {
+						items[i] = pipelineItem{pipeline: p}
+					}
+					m.list.SetItems(items)
+					m.SavePipelines()
+				}
+			}
 		case "l":
-			if !m.showLogs && len(m.pipelines) > 0 {
+			if !m.showLogs && !m.showScheduler && len(m.pipelines) > 0 {
 				selectedPipeline := m.pipelines[m.list.Index()]
 				logsContent := formatLogs(selectedPipeline.Logs)
 				m.logsViewport.SetContent(logsContent)
@@ -312,17 +415,35 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 				m.showScheduler = false
 				m.scheduleInput = ""
 			}
+			return m, nil
 		case "s":
-			m.showScheduler = true
+			if !m.showLogs && !m.showScheduler {
+				m.showScheduler = true
+			}
 		case "enter":
-			if m.showScheduler {
+			if m.showScheduler && m.scheduleInput != "" {
 				m.schedulePipeline(m.scheduleInput)
 				m.showScheduler = false
 				m.scheduleInput = ""
 			}
+		case "backspace":
+			if m.showScheduler && len(m.scheduleInput) > 0 {
+				m.scheduleInput = m.scheduleInput[:len(m.scheduleInput)-1]
+			}
+		case "space":
+			if m.showScheduler {
+				m.scheduleInput += " "
+			}
+		default:
+			// Handle text input for scheduler
+			if m.showScheduler && len(msg.String()) == 1 {
+				m.scheduleInput += msg.String()
+			}
 		}
 	case tea.WindowSizeMsg:
 		m.SetSize(msg.Width, msg.Height)
+	case runPipelineMsg:
+		return m, nil
 	}
 
 	if !m.showLogs {
@@ -337,6 +458,14 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	if cmd != nil {
 		cmds = append(cmds, cmd)
+	}
+
+	if m.showLogs {
+		var cmd tea.Cmd
+		m.logsViewport, cmd = m.logsViewport.Update(msg)
+		if cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
 	return m, tea.Batch(cmds...)
@@ -383,6 +512,10 @@ func (m *PipelinesModel) View() string {
 
 	listView := m.list.View()
 
+	footer := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("8")).
+		Render("\nPress 'r' to run pipeline, 'l' for logs, 's' to schedule, 'q' to quit")
+
 	mainStyle := lipgloss.NewStyle().
 		MaxHeight(m.height).
 		MaxWidth(m.width)
@@ -393,6 +526,7 @@ func (m *PipelinesModel) View() string {
 			header,
 			separator,
 			listView,
+			footer,
 		),
 	)
 }
@@ -433,7 +567,12 @@ func getScheduleDisplay(cronExpr string) string {
 	if cronExpr == "" {
 		return "Not scheduled"
 	}
-	return cronExpr
+	// Parse the cron expression and get next run time
+	if expr, err := cronexpr.Parse(cronExpr); err == nil {
+		next := expr.Next(time.Now())
+		return next.Format("2006-01-02 15:04:05")
+	}
+	return cronExpr // Fallback to showing expression if parsing fails
 }
 
 func formatTime(t time.Time) string {
@@ -454,37 +593,176 @@ func formatLogs(logs []string) string {
 
 func (m *PipelinesModel) renderScheduler() string {
 	return fmt.Sprintf(
-		"Enter cron expression for scheduling:\n> %s",
+		"Schedule Pipeline\n\n"+
+			"Enter cron expression (e.g., '*/5 * * * *' for every 5 minutes):\n"+
+			"> %s\n\n"+
+			"Common formats:\n"+
+			"* * * * *      - every minute\n"+
+			"*/5 * * * *    - every 5 minutes\n"+
+			"0 * * * *      - every hour\n"+
+			"0 0 * * *      - every day at midnight\n\n"+
+			"Press 'enter' to confirm or 'esc' to cancel",
 		m.scheduleInput,
 	)
 }
 
-func (m *PipelinesModel) schedulePipeline(cronExpr string) {
-	selectedPipeline := m.pipelines[m.list.Index()]
-	entryID, err := m.cron.AddFunc(cronExpr, func() {
-		runPipeline(selectedPipeline)
-	})
+func (m *PipelinesModel) executePipeline(index int) (string, error) {
+	pipeline := m.pipelines[index]
+
+	// Update pipeline status
+	m.pipelines[index].Running = true
+	m.pipelines[index].Status = "Running"
+	m.SavePipelines()
+
+	var cmd *exec.Cmd
+	if pipeline.ScriptType == "byod" {
+		cmd = exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/byod.py", pipeline.ScriptPath)
+	} else {
+		cmd = exec.Command("python3", "/Users/brettfloyd/pipeterm/utils/salesforce.py")
+	}
+
+	output, err := cmd.CombinedOutput()
+
+	// Update pipeline status based on execution result
+	m.pipelines[index].Running = false
+	m.pipelines[index].LastRun = time.Now()
+
 	if err != nil {
+		m.pipelines[index].Status = "Failed"
+		m.pipelines[index].Healthy = false
+		m.pipelines[index].Logs = append(m.pipelines[index].Logs,
+			fmt.Sprintf("[%s] Pipeline execution failed: %v",
+				time.Now().Format("2006-01-02 15:04:05"),
+				err))
+	} else {
+		m.pipelines[index].Status = "Completed"
+		m.pipelines[index].Healthy = true
+		m.pipelines[index].Logs = append(m.pipelines[index].Logs,
+			fmt.Sprintf("[%s] Pipeline executed successfully",
+				time.Now().Format("2006-01-02 15:04:05")))
+	}
+
+	// Save updated pipeline state
+	m.SavePipelines()
+
+	return string(output), err
+}
+
+func (m *PipelinesModel) RunPipeline(index int) tea.Cmd {
+	return func() tea.Msg {
+		output, err := m.executePipeline(index)
+		return runPipelineMsg{
+			ID:     m.pipelines[index].ID,
+			Output: output,
+			Error:  err,
+		}
+	}
+}
+func (m *PipelinesModel) schedulePipeline(cronExpr string) {
+	selectedIndex := m.list.Index()
+
+	// Ensure fields are correct
+	fields := strings.Fields(cronExpr)
+	if len(fields) == 5 {
+		cronExpr = "0 " + cronExpr
+	}
+
+	// Remove existing schedule if any
+	if m.pipelines[selectedIndex].CronID != 0 {
+		m.cron.Remove(m.pipelines[selectedIndex].CronID)
+	}
+
+	// Create a closure that captures the pipeline by ID rather than index
+	pipelineID := m.pipelines[selectedIndex].ID
+
+	entryID, err := m.cron.AddFunc(cronExpr, func() {
+		// Find the pipeline by ID to handle reordering
+		var pipelineIndex int
+		found := false
+		for i, p := range m.pipelines {
+			if p.ID == pipelineID {
+				pipelineIndex = i
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			// Pipeline no longer exists
+			return
+		}
+
+		// Add log entry before execution
+		m.pipelines[pipelineIndex].Logs = append(m.pipelines[pipelineIndex].Logs,
+			fmt.Sprintf("[%s] Cron trigger: Starting pipeline execution",
+				time.Now().Format("2006-01-02 15:04:05")))
+
+		output, err := m.executePipeline(pipelineIndex)
+
+		// Log the execution result
+		if err != nil {
+			m.pipelines[pipelineIndex].Logs = append(m.pipelines[pipelineIndex].Logs,
+				fmt.Sprintf("[%s] Cron execution failed: %v\nOutput: %s",
+					time.Now().Format("2006-01-02 15:04:05"),
+					err, output))
+		} else {
+			m.pipelines[pipelineIndex].Logs = append(m.pipelines[pipelineIndex].Logs,
+				fmt.Sprintf("[%s] Cron execution completed successfully\nOutput: %s",
+					time.Now().Format("2006-01-02 15:04:05"),
+					output))
+		}
+
+		// Update next run time
+		if schedule, err := cron.ParseStandard(cronExpr); err == nil {
+			m.pipelines[pipelineIndex].NextRun = schedule.Next(time.Now())
+		}
+
+		// Save changes
+		m.SavePipelines()
+	})
+
+	if err != nil {
+		m.pipelines[selectedIndex].Logs = append(m.pipelines[selectedIndex].Logs,
+			fmt.Sprintf("[%s] Failed to schedule pipeline: %v",
+				time.Now().Format("2006-01-02 15:04:05"),
+				err))
 		return
 	}
-	m.pipelines[m.list.Index()].CronExpr = cronExpr
-	m.pipelines[m.list.Index()].CronID = entryID
-	m.cron.Start()
-}
 
-func runPipeline(p Pipeline) {
-}
+	// Store the user-friendly version in CronExpr
+	if len(fields) == 5 {
+		m.pipelines[selectedIndex].CronExpr = cronExpr[2:]
+	} else {
+		m.pipelines[selectedIndex].CronExpr = cronExpr
+	}
+	m.pipelines[selectedIndex].CronID = entryID
 
-func (m *PipelinesModel) SetSize(width, height int) {
-	m.width = width
-	m.height = height
-
-	listHeight := height - 2
-	if listHeight < 1 {
-		listHeight = 1
+	// Set initial next run time
+	if schedule, err := cron.ParseStandard(cronExpr); err == nil {
+		m.pipelines[selectedIndex].NextRun = schedule.Next(time.Now())
 	}
 
-	m.list.SetSize(width, listHeight)
+	// Add log entry with human-readable format
+	m.pipelines[selectedIndex].Logs = append(m.pipelines[selectedIndex].Logs,
+		fmt.Sprintf("[%s] Pipeline scheduled: %s\n%s",
+			time.Now().Format("2006-01-02 15:04:05"),
+			m.pipelines[selectedIndex].CronExpr,
+			formatCronToHuman(m.pipelines[selectedIndex].CronExpr)))
+
+	m.SavePipelines()
+}
+func formatCronToHuman(cronExpr string) string {
+	expr, err := cronexpr.Parse(cronExpr)
+	if err != nil {
+		return "Invalid cron expression"
+	}
+
+	next := expr.Next(time.Now())
+	nextAfter := expr.Next(next)
+
+	return fmt.Sprintf("Next runs: %s, then %s",
+		next.Format("Mon Jan 2 15:04:05"),
+		nextAfter.Format("Mon Jan 2 15:04:05"))
 }
 
 func (m *PipelinesModel) Init() tea.Cmd {

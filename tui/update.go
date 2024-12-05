@@ -55,15 +55,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progressValue = 1.0
 		cmd := m.progress.SetPercent(1.0)
 		newPipeline := Pipeline{
-			Name:      m.inputs[0],
-			Status:    "Idle",
-			Healthy:   true,
-			Running:   false,
-			LastRun:   time.Now(), // Set the initial run time
-			Logs:      []string{"Pipeline Created."},
-			CronExpr:  "",
-			animation: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-			animIndex: 0,
+			Name:       m.inputs[0],
+			Status:     "Idle",
+			Healthy:    true,
+			Running:    false,
+			LastRun:    time.Now(), // Set the initial run time
+			Logs:       []string{"Pipeline Created."},
+			CronExpr:   "",
+			animation:  []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+			animIndex:  0,
+			ScriptType: getScriptType(m.selectedService),
+			ScriptPath: m.customServiceName,
 		}
 		m.pipelinesModel.AddPipeline(newPipeline)
 
@@ -167,19 +169,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.inPipelinesTab {
-			switch msg.String() {
-			case "esc", "q":
+			// Handle 'q' specially - if not in logs/scheduler, exit to welcome
+			if msg.String() == "q" && !m.pipelinesModel.showLogs && !m.pipelinesModel.showScheduler {
 				m.currentScreen = ""
 				m.state = "welcome"
 				m.inPipelinesTab = false
 				return m, nil
-			default:
-				var cmd tea.Cmd
-				m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
-				return m, cmd
 			}
-		}
 
+			// Forward everything else to pipeline model
+			var cmd tea.Cmd
+			m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
+			return m, cmd
+		}
 		// Handle data lake selection
 		if m.inDataLakeSelect {
 			switch msg.String() {
@@ -336,4 +338,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func getScriptType(serviceIndex int) string {
+	if serviceIndex == 3 { // BYOD index
+		return "byod"
+	}
+	return "salesforce" // Default to salesforce for now, can be expanded
 }
