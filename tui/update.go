@@ -55,15 +55,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.progressValue = 1.0
 		cmd := m.progress.SetPercent(1.0)
 		newPipeline := Pipeline{
-			Name:      m.inputs[0],
-			Status:    "Idle",
-			Healthy:   true,
-			Running:   false,
-			LastRun:   time.Now(), // Set the initial run time
-			Logs:      []string{"Pipeline Created."},
-			CronExpr:  "",
-			animation: []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
-			animIndex: 0,
+			Name:       m.inputs[0],
+			Status:     "Idle",
+			Healthy:    true,
+			Running:    false,
+			LastRun:    time.Now(), // Set the initial run time
+			Logs:       []string{"Pipeline Created."},
+			CronExpr:   "",
+			animation:  []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
+			animIndex:  0,
+			ScriptType: getScriptType(m.selectedService),
+			ScriptPath: m.customServiceName,
 		}
 		m.pipelinesModel.AddPipeline(newPipeline)
 
@@ -177,6 +179,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				var cmd tea.Cmd
 				m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
 				return m, cmd
+
 			}
 		}
 
@@ -336,4 +339,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func getScriptType(serviceIndex int) string {
+	if serviceIndex == 3 { // BYOD index
+		return "byod"
+	}
+	return "salesforce" // Default to salesforce for now, can be expanded
 }
