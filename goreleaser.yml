@@ -1,32 +1,30 @@
-version: 2
+version: 1
 
 project_name: pipeterm
 
 builds:
-  - id: pipeterm
-    main: ./main.go
+  - main: ./main.go
+    ldflags:
+      - -s -w -X main.version={{.Version}}
     goos:
       - darwin
       - linux
     goarch:
       - amd64
       - arm64
-    ldflags:
-      - -s -w -X main.version={{.Version}}
 
-archives:
-  - id: default
-    format: tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+archive:
+  format: tar.gz
+  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+  files:
+    - LICENSE
+    - README.md
 
-checksums:
-  - id: default
-    name_template: "checksums.txt"
+checksum:
+  name_template: "checksums.txt"
 
 brews:
-  - id: pipeterm
-    name: pipeterm
-    tap:
+  - github:
       owner: brfloyd
       name: homebrew-pipeterm
     commit_author:
