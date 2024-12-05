@@ -1,0 +1,39 @@
+project_name: pipeterm
+
+builds:
+  - id: pipeterm
+    main: ./main.go
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - "-s -w -X main.version={{.Version}}"
+
+archive:
+  format: tar.gz
+  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+brews:
+  - name: pipeterm
+    tap:
+      owner: brfloyd
+      name: homebrew-pipeterm
+    homepage: "https://github.com/brfloyd/pipeterm"
+    description: "Local data lake and pipeline tool"
+    install: |
+      bin.install "pipeterm"
+    dependencies:
+      - "go"
+    test: |
+      system "#{bin}/pipeterm", "--version"
+
+release:
+  github:
+    owner: brfloyd
+    name: pipeterm
