@@ -169,20 +169,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if m.inPipelinesTab {
-			switch msg.String() {
-			case "esc", "q":
+			// Handle 'q' specially - if not in logs/scheduler, exit to welcome
+			if msg.String() == "q" && !m.pipelinesModel.showLogs && !m.pipelinesModel.showScheduler {
 				m.currentScreen = ""
 				m.state = "welcome"
 				m.inPipelinesTab = false
 				return m, nil
-			default:
-				var cmd tea.Cmd
-				m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
-				return m, cmd
-
 			}
-		}
 
+			// Forward everything else to pipeline model
+			var cmd tea.Cmd
+			m.pipelinesModel, cmd = m.pipelinesModel.Update(msg)
+			return m, cmd
+		}
 		// Handle data lake selection
 		if m.inDataLakeSelect {
 			switch msg.String() {

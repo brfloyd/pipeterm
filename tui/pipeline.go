@@ -365,7 +365,14 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q", "ctrl+c":
+		case "q":
+			// Only quit the entire app if we're in the main pipeline view
+			if !m.showLogs && !m.showScheduler {
+				m.SavePipelines()
+				return m, nil
+			}
+			// Otherwise ignore 'q' in sub-views
+		case "ctrl+c":
 			m.SavePipelines()
 			return m, tea.Quit
 		case "r":
@@ -404,7 +411,6 @@ func (m *PipelinesModel) Update(msg tea.Msg) (*PipelinesModel, tea.Cmd) {
 		case "esc":
 			if m.showLogs {
 				m.showLogs = false
-				return m, nil
 			} else if m.showScheduler {
 				m.showScheduler = false
 				m.scheduleInput = ""
@@ -561,7 +567,12 @@ func getScheduleDisplay(cronExpr string) string {
 	if cronExpr == "" {
 		return "Not scheduled"
 	}
-	return cronExpr
+	// Parse the cron expression and get next run time
+	if expr, err := cronexpr.Parse(cronExpr); err == nil {
+		next := expr.Next(time.Now())
+		return next.Format("2006-01-02 15:04:05")
+	}
+	return cronExpr // Fallback to showing expression if parsing fails
 }
 
 func formatTime(t time.Time) string {
