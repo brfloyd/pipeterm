@@ -1,3 +1,5 @@
+version: 2
+
 project_name: pipeterm
 
 builds:
@@ -10,26 +12,32 @@ builds:
       - amd64
       - arm64
     ldflags:
-      - "-s -w -X main.version={{.Version}}"
+      - -s -w -X main.version={{.Version}}
 
-archive:
-  format: tar.gz
-  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+archives:
+  - id: default
+    format: tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
-checksum:
-  name_template: "checksums.txt"
+checksums:
+  - id: default
+    name_template: "checksums.txt"
 
 brews:
-  - name: pipeterm
+  - id: pipeterm
+    name: pipeterm
     tap:
       owner: brfloyd
       name: homebrew-pipeterm
+    commit_author:
+      name: "Brett Floyd"
+      email: "brfloyd19@gmail.com"
     homepage: "https://github.com/brfloyd/pipeterm"
     description: "Local data lake and pipeline tool"
     install: |
       bin.install "pipeterm"
     dependencies:
-      - "go"
+      - go
     test: |
       system "#{bin}/pipeterm", "--version"
 
