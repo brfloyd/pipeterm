@@ -2,4 +2,4 @@
 
 Pipeterm allows the creation and management of simple data pipelines that can be ran from pre-build connectors or with your own ETL scripts.
 
-<iframe src="https://giphy.com/embed/euFnzaDpYakSLLwIaG" width="480" height="326" style="" frameBorder="0" class="giphy-embed" allowFullScreen></iframe><p><a href="https://giphy.com/gifs/euFnzaDpYakSLLwIaG">via GIPHY</a></p>
+![hippo](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdvMXJlenRvbDh6ZXE0M2g1ODUzZmIzaWZlNGM4M21mMTZ6eXQ0OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/euFnzaDpYakSLLwIaG/giphy.gif)
