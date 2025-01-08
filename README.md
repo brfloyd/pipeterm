@@ -2,4 +2,8 @@
 
 Pipeterm allows the creation and management of simple data pipelines that can be ran from pre-build connectors or with your own ETL scripts.
 
-![hippo](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExNGdvMXJlenRvbDh6ZXE0M2g1ODUzZmIzaWZlNGM4M21mMTZ6eXQ0OSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/euFnzaDpYakSLLwIaG/giphy.gif)
+![me](https://github.com/brfloyd/pipeterm/blob/main/repo_contents/pipeline_creation.gif)
+
+Pipeterm also allows the ability to manage the data pipelines one created, which involves scheduling via cron, health checks, and logging.
+
+![me](https://github.com/brfloyd/pipeterm/blob/main/repo_contents/pipeline_management.gif)
