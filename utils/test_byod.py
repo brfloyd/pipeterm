@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 
 
@@ -9,4 +11,5 @@ def ingest_data():
         "Occupation": ["Engineer", "Doctor", "Artist"],
     }
     df = pd.DataFrame(data)
+    time.sleep(5)  # Simulate data ingestion
     return df
